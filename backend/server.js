@@ -1,7 +1,3 @@
-/**
- * Backend API para agregador de datos meteorológicos
- * Ejecutar: node server.js
- */
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -12,7 +8,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Config
 const CONFIG = {
   meteociel: {
     baseUrl: 'https://www.meteociel.fr/modeles/arome_sp.php',
@@ -30,8 +25,8 @@ const CONFIG = {
 
 async function getMeteocielData(lat, lon) {
   try {
-    const url = `${CONFIG.meteociel.baseUrl}?lat=${lat}&lon=${lon}`;
-    console.log(`[Meteociel] Consultando...`);
+    const url = CONFIG.meteociel.baseUrl + '?lat=' + lat + '&lon=' + lon;
+    console.log('[Meteociel] Consultando...');
 
     const response = await axios.get(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MeteoBot/1.0)' },
@@ -48,18 +43,20 @@ async function getMeteocielData(lat, lon) {
           try {
             const hour = $(cells[0]).text().trim();
             const temp = $(cells[1]).text().trim();
-            const rain = $(cells[2])?.text().trim();
-            const wind = $(cells[3])?.text().trim();
+            const rain = $(cells[2]).text().trim();
+            const wind = $(cells[3]).text().trim();
 
             if (hour && (temp || rain)) {
               forecast.push({
-                hour,
+                hour: hour,
                 temperature: parseFloat(temp) || null,
                 precipitation: parseFloat(rain) || null,
                 wind: parseFloat(wind) || null
               });
             }
-          } catch (e) {}
+          } catch (e) {
+            // Skip invalid rows
+          }
         }
       });
     });
@@ -67,7 +64,7 @@ async function getMeteocielData(lat, lon) {
     return {
       timestamp: new Date().toISOString(),
       source: 'AROME (Meteociel)',
-      location: `${lat},${lon}`,
+      location: lat + ',' + lon,
       forecast: forecast.slice(0, 24)
     };
   } catch (error) {
@@ -76,11 +73,12 @@ async function getMeteocielData(lat, lon) {
   }
 }
 
-// Routes
 app.get('/api/weather', async (req, res) => {
-  const { lat = CONFIG.meteociel.lat, lon = CONFIG.meteociel.lon } = req.query;
+  const lat = parseFloat(req.query.lat) || CONFIG.meteociel.lat;
+  const lon = parseFloat(req.query.lon) || CONFIG.meteociel.lon;
+  
   try {
-    const data = await getMeteocielData(parseFloat(lat), parseFloat(lon));
+    const data = await getMeteocielData(lat, lon);
     res.json({
       success: true,
       data: data
@@ -117,8 +115,9 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`\n🌦️  Backend meteorológico iniciado`);
-  console.log(`📍 Puerto: ${PORT}`);
-  console.log(`📊 GET http://localhost:${PORT}/api/weather`);
-  console.log(`✓  GET http://localhost:${PORT}/api/status\n`);
+  console.log('\n=== Weather Aggregator Backend ===');
+  console.log('Port: ' + PORT);
+  console.log('GET /api/weather?lat=39.05&lon=-0.35');
+  console.log('GET /api/status');
+  console.log('===================================\n');
 });
